@@ -21,12 +21,13 @@ segment .text
 ; CDECL 
 ; %1  -- format string addr like in std::printf
 ; %2+ -- %args
-; Destroys: 
+; Destroys: ax
 ; ################################
 printf:
+    xor rax, rax
     push rbp
-    lea rbp, [rsp + 16] ; rbp -> first arg
-    mov rsi, [rsp + 16] ; rdi = fmt string addr
+    lea rbp, [rsp + 8*3] ; rbp -> first arg
+    mov rsi, [rsp + 8*2] ; rdi = fmt string addr
     mov rdi, buffer
 
 .loadsymbol:
@@ -37,6 +38,10 @@ printf:
     lodsb
     cmp al, '%'
     je .format_percent
+
+    sub al, 'b'
+    lea rbx, [rax + call_table]
+    jmp [rbx]
 
 .not_percent:
     test al, al
@@ -53,12 +58,38 @@ jmp .loadsymbol
     ret
 
 ;; Just put percent
-.format_percent
+.format_percent:
     stosb
 jmp .loadsymbol
 
+;; Format binary
+.format_binary:
+    ; Load argument
+    mov rax, [rbp]
+    lea rbp, [rbp + 8]
+
+    ; Add '0b' before number
+    mov word [rdi], '0b'
+    lea rdi, [rdi + 2]
+
+.bin_format_digit:
+    ; Get last bit
+    mov rbx, rax
+    and rbx, 1
+    shr rax, 1
+
+    mov dl, [rbx + hex_digits]
+    mov [rdi], dl
+    inc rdi
+
+    test rax, rax
+    jne .bin_format_digit  
+jmp .loadsymbol
+
 segment .rodata
-    call_table dq 
+    call_table dq printf.format_binary
+    
+    hex_digits db "0123456789ABCDEF"
 
 segment .bss
 
