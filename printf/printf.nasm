@@ -30,7 +30,7 @@ printf:
     mov rsi, [rsp + 8*2] ; rdi = fmt string addr
     mov rdi, buffer
 
-loadsymbol:
+.loadsymbol:
     lodsb
     cmp al, '%'
     jne .not_percent
@@ -40,15 +40,17 @@ loadsymbol:
     je .format_percent
 
     sub al, 'b'
-    lea rbx, [rax + call_table]
-    jmp [rbx]
+    mov rdx, [rbp]
+    lea rbp, [rbp + 8]
+    call [rax * 8 + call_table]
+    jmp .loadsymbol
 
 .not_percent:
     test al, al
     jz .strend
 
     stosb
-jmp loadsymbol
+jmp .loadsymbol
 
 .strend:
     sub rdi, buffer
@@ -62,16 +64,15 @@ jmp loadsymbol
     stosb
 jmp .loadsymbol
 
-
-
-;; #############################
-;; # Format binary             #
-;; #############################
+;; ####################################
+;; # Format Binary                    #
+;; ####################################
+;; # Args:                            #
+;; # rdx -- number to format          #
+;; # rdi -- pointer to buffer         #
+;; # Destroys: (rdx), rbx, rcx, (rdi) #
+;; ####################################
 format_binary:
-    ; Load argument
-    mov rax, [rbp]
-    lea rbp, [rbp + 8]
-
     ; Add '0b' before number
     mov word [rdi], '0b'
     lea rdi, [rdi + 2]
@@ -79,33 +80,80 @@ format_binary:
     ; Skip <= 63 bits
     mov rcx, 63d
 
-.bin_format_prefix: ; skip leading zeros
-    mov rbx, rax
+.format_prefix: ; skip leading zeros
+    mov rbx, rdx
     rol rbx, 1
     and rbx, 1 ; Extract first bit
 
-    test rbx, rbx
-    jnz .bin_format_digit
+    test rbx, rbx ; Stop skipking if bit is non-zero
+    jnz .format_digit
     
-    shl rax, 1
-loop .bin_format_prefix
+    shl rdx, 1
+loop .format_prefix
 
-.bin_format_digit:
-    ; Get last bit
-    shl rax, 1
-    mov dl, [rbx + hex_digits]
-    mov [rdi], dl
+.format_digit:
+    ; Write digit
+    mov bl, [rbx + hex_digits]
+    mov [rdi], bl
     inc rdi
 
-    mov rbx, rax
+    ; Update last bit
+    shl rdx, 1
+    mov rbx, rdx
     rol rbx, 1
     and rbx, 1
-    test rax, rax
-    jne .bin_format_digit  
-jmp loadsymbol
+    test rdx, rdx
+    jne .format_digit  
+ret
+
+;; ####################################
+;; # Format Hex                       #
+;; ####################################
+;; # Args:                            #
+;; # rdx -- number to format          #
+;; # rdi -- pointer to buffer         #
+;; # Return: rdi -> end of formatted  #
+;; # string                           #
+;; # Destroys: (rdx), rbx, rcx, (rdi) #
+;; ####################################
+format_hex:
+    ; Add '0x' before number
+    mov word [rdi], '0x'
+    lea rdi, [rdi + 2]
+
+    ; Skip <= 15 octets
+    mov rcx, 15d
+
+.format_prefix: ; skip leading zeros
+    mov rbx, rdx
+    rol rbx, 4
+    and rbx, 0xF ; Extract first bit
+
+    test rbx, rbx ; Stop skipking if octet is non-zero
+    jnz .format_digit
+    
+    shl rdx, 4
+loop .format_prefix
+
+.format_digit:
+    ; Write digit
+    mov bl, [rbx + hex_digits]
+    mov [rdi], bl
+    inc rdi
+
+    ; Update last octet
+    shl rdx, 4
+    mov rbx, rdx
+    rol rbx, 4
+    and rbx, 0xF
+    test rdx, rdx
+    jne .format_digit  
+ret
 
 segment .rodata
-    call_table dq printf.format_binary
+    call_table dq format_binary
+               dq 21 dup(0)
+               dq format_hex
     
     hex_digits db "0123456789ABCDEF"
 
