@@ -10,6 +10,8 @@ segment .text
 
 _start: 
     push 228
+    push 228
+    push 228
     push helloworld
     call printf
 
@@ -21,7 +23,7 @@ segment .data
 segment .rodata
 format_str db "lets test %x"
 
-helloworld db "hello %x world", newline, 0x00
+helloworld db "hello %b %x world", newline, 0x00
 helloworld_len equ $ - helloworld
 
 

@@ -78,7 +78,7 @@ format_binary:
     lea rdi, [rdi + 2]
 
     ; Skip <= 63 bits
-    mov rcx, 63d
+    mov rcx, 64d
 
 .format_prefix: ; skip leading zeros
     mov rbx, rdx
@@ -93,7 +93,7 @@ loop .format_prefix
 
 .format_digit:
     ; Write digit
-    mov bl, [rbx + hex_digits]
+    lea rbx, [rbx + '0']
     mov [rdi], bl
     inc rdi
 
@@ -102,8 +102,7 @@ loop .format_prefix
     mov rbx, rdx
     rol rbx, 1
     and rbx, 1
-    test rdx, rdx
-    jne .format_digit  
+    loop .format_digit  
 ret
 
 ;; ####################################
@@ -121,15 +120,15 @@ format_hex:
     mov word [rdi], '0x'
     lea rdi, [rdi + 2]
 
-    ; Skip <= 15 octets
-    mov rcx, 15d
+    ; 64 / 8 = 16 blocks
+    mov rcx, 16d
 
 .format_prefix: ; skip leading zeros
     mov rbx, rdx
     rol rbx, 4
-    and rbx, 0xF ; Extract first bit
+    and rbx, 0xF ; Extract first block
 
-    test rbx, rbx ; Stop skipking if octet is non-zero
+    test rbx, rbx ; Stop skipking if block is non-zero
     jnz .format_digit
     
     shl rdx, 4
@@ -146,13 +145,58 @@ loop .format_prefix
     mov rbx, rdx
     rol rbx, 4
     and rbx, 0xF
+    loop .format_digit  
+ret
+
+;; ####################################
+;; # Format Octo                      #
+;; ####################################
+;; # Args:                            #
+;; # rdx -- number to format          #
+;; # rdi -- pointer to buffer         #
+;; # Return: rdi -> end of formatted  #
+;; # string                           #
+;; # Destroys: (rdx), rbx, rcx, (rdi) #
+;; ####################################
+format_octo:
+    ; Add '0o' before number
+    mov word [rdi], '0o'
+    lea rdi, [rdi + 2]
+
+    ; Skip <= 21 blocks
+    mov rcx, 22d
+
+.format_prefix: ; skip leading zeros
+    mov rbx, rdx
+    rol rbx, 3
+    and rbx, 0x7 ; Extract first block
+
+    test rbx, rbx ; Stop skipking if block is non-zero
+    jnz .format_digit
+    
+    shl rdx, 3
+loop .format_prefix
+
+.format_digit:
+    ; Write digit
+    lea rbx, [rbx + '0']
+    mov [rdi], bl
+    inc rdi
+
+    ; Update last octet
+    shl rdx, 3
+    mov rbx, rdx
+    rol rbx, 3
+    and rbx, 0x7
     test rdx, rdx
     jne .format_digit  
 ret
 
 segment .rodata
     call_table dq format_binary
-               dq 21 dup(0)
+               dq 12 dup(0)
+               dq format_octo
+               dq 8 dup(0)
                dq format_hex
     
     hex_digits db "0123456789ABCDEF"
