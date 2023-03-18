@@ -23,7 +23,7 @@ segment .data
 segment .rodata
 format_str db "lets test %x"
 
-helloworld db "hello %b %x world", newline, 0x00
+helloworld db "hello %o world", newline, 0x00
 helloworld_len equ $ - helloworld
 
 

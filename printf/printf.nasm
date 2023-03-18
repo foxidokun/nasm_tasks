@@ -77,7 +77,7 @@ format_binary:
     mov word [rdi], '0b'
     lea rdi, [rdi + 2]
 
-    ; Skip <= 63 bits
+    ; There are only 64 bits in registers
     mov rcx, 64d
 
 .format_prefix: ; skip leading zeros
@@ -163,8 +163,17 @@ format_octo:
     mov word [rdi], '0o'
     lea rdi, [rdi + 2]
 
-    ; Skip <= 21 blocks
-    mov rcx, 22d
+    ; 64 = 21 * 3 + 1 => 21 block
+    mov rcx, 21d
+
+    ; Test highest bit
+    mov rbx, rdx
+    shl rdx, 1
+    and rbx, 0x8000000000000000
+    test rbx, rbx
+    jz .format_prefix
+    mov byte [rdi], '1'
+    inc rdi
 
 .format_prefix: ; skip leading zeros
     mov rbx, rdx
