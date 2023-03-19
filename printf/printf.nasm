@@ -119,6 +119,11 @@ format_binary:
     shl rdx, 1
 loop .format_prefix
 
+    ; If number was 0 we should process one more bit
+    test rcx, rcx
+    jnz .format_digit
+    inc rcx
+
 .format_digit:
     ; Write digit
     lea rbx, [rbx + '0']
@@ -161,6 +166,11 @@ format_hex:
     
     shl rdx, 4
 loop .format_prefix
+
+    ; If number was 0 we should process one more bit
+    test rcx, rcx
+    jnz .format_digit
+    inc rcx
 
 .format_digit:
     ; Write digit

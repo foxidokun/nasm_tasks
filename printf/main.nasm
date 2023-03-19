@@ -9,10 +9,10 @@ segment .text
 ; ################################
 
 _start: 
-    push 228
-    push 228
-    push 228
-    push 228
+    push 0
+    push 0
+    push 0
+    push 0
     push helloworld
     push format_str
     call printf
