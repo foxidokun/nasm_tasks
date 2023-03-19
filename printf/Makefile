@@ -12,3 +12,5 @@ link:
 execute:
 	echo "PROG RESULT" && echo "############" && $(LINK_OUT)
 	
+debug: build link
+	edb --run $(LINK_OUT)

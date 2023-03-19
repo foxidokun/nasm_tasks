@@ -1,3 +1,4 @@
+%include "string.nasm"
 segment .text
 
 ; ################################
@@ -16,6 +17,20 @@ segment .text
 %endmacro
 
 ; ################################
+; Dump buffer
+; ################################
+; Destroys: rbx
+; ################################
+dump_buffer:
+    mov rbx, rsi
+    sub rdi, buffer
+    print_str buffer, rdi
+    mov rsi, rbx
+    mov rdi, buffer
+ret
+
+
+; ################################
 ; Format given string to stdout
 ; ################################
 ; CDECL 
@@ -31,20 +46,32 @@ printf:
     mov rdi, buffer
 
 .loadsymbol:
+    ; Check if buffer is full
+    cmp rdi, buffer + BUFFER_SIZE
+    jb .skip_writing_buffer
+
+    ; Write buffer if full
+    call dump_buffer
+
+.skip_writing_buffer:
+    ; Load symbol
     lodsb
     cmp al, '%'
     jne .not_percent
 
+    ; Load modificator
     lodsb
     cmp al, '%'
     je .format_percent
 
+    ; Jump table instead
     sub al, 'b'
     mov rdx, [rbp]
     lea rbp, [rbp + 8]
     call [rax * 8 + call_table]
     jmp .loadsymbol
 
+; Just copy symbols
 .not_percent:
     test al, al
     jz .strend
@@ -52,6 +79,7 @@ printf:
     stosb
 jmp .loadsymbol
 
+; Dump buffer & exit
 .strend:
     sub rdi, buffer
 
@@ -201,15 +229,65 @@ loop .format_prefix
     jne .format_digit  
 ret
 
+;; ####################################
+;; # Format Char                      #
+;; ####################################
+;; # Args:                            #
+;; # rdx -- char to format            #
+;; # Return: rdi -> end of formatted  #
+;; # string                           #
+;; # Destroys: none                   #
+;; ####################################
+format_char:
+    mov [rdi], rdx
+    inc rdi
+ret
+
+;; ####################################
+;; # Format Char                      #
+;; ####################################
+;; # Args:                            #
+;; # rdx -- strptr to format          #
+;; # Return: rdi -> end of formatted  #
+;; # string                           #
+;; # Destroys: none                   #
+;; ####################################
+format_string:
+    mov r11, rdi
+    mov rdi, rdx
+    call strlen
+    mov rdi, r11
+
+    cmp rdi, buffer
+    je .skip_buffer_dump
+        mov r12, rdx
+        mov r13, rcx
+        call dump_buffer
+        mov rdx, r12
+        mov rcx, r13
+
+    .skip_buffer_dump:
+        mov rbx, rsi
+        mov r12, rdi
+        print_str rdx, rcx
+        mov rsi, rbx
+        mov rdi, r12
+ret
+
 segment .rodata
     call_table dq format_binary
-               dq 12 dup(0)
+               dq format_char
+               dq 11 dup(0)
                dq format_octo
-               dq 8 dup(0)
+               dq 3 dup(0)
+               dq format_string
+               dq 4 dup(0)
                dq format_hex
     
     hex_digits db "0123456789ABCDEF"
 
 segment .bss
 
-buffer db 0x100 dup(?)
+BUFFER_SIZE equ 0x100
+RESERVED_SIZE equ 0x10
+buffer db BUFFER_SIZE + RESERVED_SIZE dup(?)

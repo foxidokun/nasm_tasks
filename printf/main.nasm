@@ -13,6 +13,7 @@ _start:
     push 228
     push 228
     push helloworld
+    push format_str
     call printf
 
     mov rax, 60d
@@ -21,10 +22,8 @@ _start:
 segment .data 
 
 segment .rodata
-format_str db "lets test %x"
-
-helloworld db "hello %o world", newline, 0x00
-helloworld_len equ $ - helloworld
+format_str db "hello %s %b %o %x", newline, 0x00
+helloworld db "Happy New Year", 0x00
 
 
 ;; SOME BASIC CONSTS
