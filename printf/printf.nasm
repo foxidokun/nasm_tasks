@@ -42,7 +42,7 @@ printf:
     xor rax, rax
     push rbp
     lea rbp, [rsp + 8*3] ; rbp -> first arg
-    mov rsi, [rsp + 8*2] ; rdi = fmt string addr
+    mov rsi, [rsp + 8*2] ; rsi = fmt string addr
     mov rdi, buffer
 
 .loadsymbol:
@@ -274,10 +274,55 @@ format_string:
         mov rdi, r12
 ret
 
+;; ####################################
+;; # Format Decimal                   #
+;; ####################################
+;; # Args:                            #
+;; # rdx -- num to format             #
+;; # Return: rdi -> end of formatted  #
+;; # string                           #
+;; # Destroys: none                   #
+;; ####################################
+
+format_decimal:
+    mov rax, rdx ; Prepare for division
+    mov rcx, 10 
+
+    mov r12, rdi ; Save rdi
+    
+    mov rdi, dec_buffer + MAX_DEC_LEN - 1
+
+.format_digit:
+    xor rdx, rdx
+    div rcx
+
+    lea r11, [rdx + "0"]
+    mov [rdi], r11b
+    dec rdi
+
+    test rax, rax
+    jnz .format_digit
+
+    xchg rdi, r12
+    inc r12
+
+.copy_buf:
+    mov al, [r12]
+    mov [rdi], al
+    inc r12
+    inc rdi
+
+    cmp r12, dec_buffer + MAX_DEC_LEN
+    jb .copy_buf
+
+ret
+
+
 segment .rodata
     call_table dq format_binary
                dq format_char
-               dq 11 dup(0)
+               dq format_decimal
+               dq 10 dup(0)
                dq format_octo
                dq 3 dup(0)
                dq format_string
@@ -290,4 +335,8 @@ segment .bss
 
 BUFFER_SIZE equ 0x100
 RESERVED_SIZE equ 0x10
+MAX_DEC_LEN equ 0x10
+
 buffer db BUFFER_SIZE + RESERVED_SIZE dup(?)
+dec_buffer db MAX_DEC_LEN dup(?)
+debug_buffer db MAX_DEC_LEN dup(?)

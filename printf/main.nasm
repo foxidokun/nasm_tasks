@@ -12,6 +12,7 @@ _start:
     push 228
     push 228
     push 228
+    push 228
     push helloworld
     push format_str
     call printf
@@ -22,7 +23,7 @@ _start:
 segment .data 
 
 segment .rodata
-format_str db "hello %s %b %o %x", newline, 0x00
+format_str db "hello %s %d %o %x %b", newline, 0x00
 helloworld db "Happy New Year", 0x00
 
 
