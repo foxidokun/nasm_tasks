@@ -1,12 +1,29 @@
 %include "printf.nasm"
 
-global _start
+global own_printf_wrapper
+; global _start
 
 segment .text
 
 ; ################################
 ; MAIN
 ; ################################
+
+
+own_printf_wrapper:
+    ; Convert stdcall to cdecl
+    push r9 
+    push r8 
+    push rcx 
+    push rdx 
+    push rsi 
+    push rdi
+
+    call printf
+
+    add rsp, 6*8 ; Return stack pointer
+
+    ret
 
 _start: 
     push 0
