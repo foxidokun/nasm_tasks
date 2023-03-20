@@ -12,6 +12,8 @@ segment .text
 
 own_printf_wrapper:
     ; Convert stdcall to cdecl
+    pop r12 ; Save return addr
+
     push r9 
     push r8 
     push rcx 
@@ -23,6 +25,7 @@ own_printf_wrapper:
 
     add rsp, 6*8 ; Return stack pointer
 
+    push r12 ; Restore return addr
     ret
 
 _start: 
