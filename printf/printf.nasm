@@ -65,10 +65,10 @@ printf:
     je .format_percent
 
     ; Jump table instead
-    sub al, 'b'
+    ; sub al, 'b'
     mov rdx, [rbp]
     lea rbp, [rbp + 8]
-    call [rax * 8 + call_table]
+    call [(rax - "b") * 8 + call_table] ; jmp 
     jmp .loadsymbol
 
 ; Just copy symbols
@@ -207,7 +207,7 @@ format_octo:
     ; Test highest bit
     mov rbx, rdx
     shl rdx, 1
-    and rbx, 0x8000000000000000
+    and rbx, HIGHER_BIT
     test rbx, rbx
     jz .format_prefix
     mov byte [rdi], '1'
@@ -295,15 +295,26 @@ ret
 ;; # rdx -- num to format             #
 ;; # Return: rdi -> end of formatted  #
 ;; # string                           #
-;; # Destroys: none                   #
+;; # Destroys:                        #
 ;; ####################################
 
 format_decimal:
+    push r13
+    xor r13, r13
+
     mov rax, rdx ; Prepare for division
     mov rcx, 10 
 
     mov r9, rdi ; Save rdi
-    
+
+    shr rdx, 63
+    test rdx, rdx
+    jz .no_minus
+        mov r13, 1
+        not rax
+        inc rax
+
+.no_minus:
     mov rdi, dec_buffer + MAX_DEC_LEN - 1
 
 .format_digit:
@@ -322,6 +333,12 @@ jnz .format_digit
     inc r9
 
 .copy_buf:
+    test r13, r13
+    jz .no_minus_buf
+        mov byte [rdi], '-'
+        inc rdi 
+
+.no_minus_buf:
 ; Copy decimal buffer to global buffer
     mov al, [r9]
     mov [rdi], al
@@ -329,8 +346,9 @@ jnz .format_digit
     inc rdi
 
     cmp r9, dec_buffer + MAX_DEC_LEN
-    jb .copy_buf
+    jb .no_minus_buf
 
+    pop r13
 ret
 
 
@@ -338,7 +356,7 @@ segment .rodata
     call_table dq format_binary
                dq format_char
                dq format_decimal
-               dq 10 dup(0)
+               dq 10 dup(0) ; default
                dq format_octo
                dq 3 dup(0)
                dq format_string
@@ -352,6 +370,8 @@ segment .bss
 BUFFER_SIZE equ 0x100
 RESERVED_SIZE equ 0x10
 MAX_DEC_LEN equ 0x10
+
+HIGHER_BIT equ 0x8000000000000000
 
 buffer db BUFFER_SIZE + RESERVED_SIZE dup(?)
 dec_buffer db MAX_DEC_LEN dup(?)

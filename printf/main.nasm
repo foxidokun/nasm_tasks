@@ -29,11 +29,11 @@ own_printf_wrapper:
     ret
 
 _start: 
-    push 0
-    push 0
-    push 0
-    push 0
-    push helloworld
+    push 18446744073709551615
+    push 18446744073709551615
+    push 18446744073709551615
+    push -1
+    ; push helloworld
     push format_str
     call printf
 
@@ -43,7 +43,7 @@ _start:
 segment .data 
 
 segment .rodata
-format_str db "hello %s %d %o %x %b", newline, 0x00
+format_str db "hello %d %o %x %b", newline, 0x00
 helloworld db "Happy New Year", 0x00
 
 
