@@ -36,7 +36,7 @@ ret
 ; CDECL 
 ; %1  -- format string addr like in std::printf
 ; %2+ -- %args
-; Destroys: ax
+; Destroys: rax, rsi, rdi, rdx
 ; ################################
 printf:
     xor rax, rax
@@ -249,39 +249,43 @@ ret
 ;; # Destroys: none                   #
 ;; ####################################
 format_char:
+    ; Just copy char to buffer
     mov [rdi], rdx
     inc rdi
 ret
 
 ;; ####################################
-;; # Format Char                      #
+;; # Format String                    #
 ;; ####################################
 ;; # Args:                            #
 ;; # rdx -- strptr to format          #
 ;; # Return: rdi -> end of formatted  #
 ;; # string                           #
-;; # Destroys: none                   #
+;; # Destroys: r9, r10, r11           #
 ;; ####################################
 format_string:
+    ; Get strlen
     mov r11, rdi
     mov rdi, rdx
     call strlen
     mov rdi, r11
 
+    ; Dump buffer if it is not empty
     cmp rdi, buffer
     je .skip_buffer_dump
-        mov r12, rdx
-        mov r13, rcx
+        mov r9, rdx
+        mov r10, rcx
         call dump_buffer
-        mov rdx, r12
-        mov rcx, r13
+        mov rdx, r9
+        mov rcx, r10
 
+    ; Dump string
     .skip_buffer_dump:
         mov rbx, rsi
-        mov r12, rdi
+        mov r9, rdi
         print_str rdx, rcx
         mov rsi, rbx
-        mov rdi, r12
+        mov rdi, r9
 ret
 
 ;; ####################################
@@ -298,31 +302,33 @@ format_decimal:
     mov rax, rdx ; Prepare for division
     mov rcx, 10 
 
-    mov r12, rdi ; Save rdi
+    mov r9, rdi ; Save rdi
     
     mov rdi, dec_buffer + MAX_DEC_LEN - 1
 
 .format_digit:
+; Get one digit
     xor rdx, rdx
     div rcx
 
+; Put it to buffer
     lea r11, [rdx + "0"]
     mov [rdi], r11b
     dec rdi
 
     test rax, rax
-    jnz .format_digit
-
-    xchg rdi, r12
-    inc r12
+jnz .format_digit
+    xchg rdi, r9
+    inc r9
 
 .copy_buf:
-    mov al, [r12]
+; Copy decimal buffer to global buffer
+    mov al, [r9]
     mov [rdi], al
-    inc r12
+    inc r9
     inc rdi
 
-    cmp r12, dec_buffer + MAX_DEC_LEN
+    cmp r9, dec_buffer + MAX_DEC_LEN
     jb .copy_buf
 
 ret
