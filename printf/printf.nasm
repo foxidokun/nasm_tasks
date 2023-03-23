@@ -38,7 +38,7 @@ ret
 ; %2+ -- %args
 ; Destroys: rax, rsi, rdi, rdx
 ; ################################
-printf:
+asm_printf:
     xor rax, rax
     push rbp
     lea rbp, [rsp + 8*3] ; rbp -> first arg
@@ -65,10 +65,13 @@ printf:
     je .format_percent
 
     ; Jump table instead
-    ; sub al, 'b'
+    sub al, 'b'
+    jb default_case
+    cmp al, JMP_TABLE_SIZE
+    jae default_case
     mov rdx, [rbp]
     lea rbp, [rbp + 8]
-    call [(rax - "b") * 8 + call_table] ; jmp 
+    jmp [rax* 8 + jmp_table] ; jmp 
     jmp .loadsymbol
 
 ; Just copy symbols
@@ -93,50 +96,65 @@ jmp .loadsymbol
 jmp .loadsymbol
 
 ;; ####################################
-;; # Format Binary                    #
+;; # Format Power of Two              #
 ;; ####################################
 ;; # Args:                            #
 ;; # rdx -- number to format          #
 ;; # rdi -- pointer to buffer         #
+;; # cl  -- power of two              #
+;; # r11 -- mask                      #
+;; # r9  -- 64 / power                #
+;; # Return: rdi -> end of formatted  #
+;; # string                           #
 ;; # Destroys: (rdx), rbx, rcx, (rdi) #
+;; #            r11                   #
 ;; ####################################
-format_binary:
-    ; Add '0b' before number
-    mov word [rdi], '0b'
-    lea rdi, [rdi + 2]
-
-    ; There are only 64 bits in registers
-    mov rcx, 64d
+format_bin_power:
+    cmp cl, 3
+    jne .format_prefix ; Not octo
+        mov rbx, rdx
+        shl rdx, 1
+        and rbx, HIGHER_BIT
+        test rbx, rbx
+        jz .format_prefix
+        mov byte [rdi], '1'
+        inc rdi
 
 .format_prefix: ; skip leading zeros
     mov rbx, rdx
-    rol rbx, 1
-    and rbx, 1 ; Extract first bit
+    rol rbx, cl
+    and rbx, r11 ; Extract first block
 
-    test rbx, rbx ; Stop skipking if bit is non-zero
+    test rbx, rbx ; Stop skipking if block is non-zero
     jnz .format_digit
     
-    shl rdx, 1
-loop .format_prefix
+    shl rdx, cl
+
+    dec r9
+    test r9, r9
+jnz .format_prefix
 
     ; If number was 0 we should process one more bit
-    test rcx, rcx
+    test r9, r9
     jnz .format_digit
-    inc rcx
+    inc r9
 
 .format_digit:
     ; Write digit
-    lea rbx, [rbx + '0']
+    mov bl, [rbx + hex_digits]
     mov [rdi], bl
     inc rdi
 
-    ; Update last bit
-    shl rdx, 1
+    ; Update last octet
+    shl rdx, cl
     mov rbx, rdx
-    rol rbx, 1
-    and rbx, 1
-    loop .format_digit  
-ret
+    rol rbx, cl
+    and rbx, r11
+    
+    dec r9
+    test r9, r9
+    jnz .format_digit  
+jmp asm_printf.loadsymbol
 
 ;; ####################################
 ;; # Format Hex                       #
@@ -149,42 +167,24 @@ ret
 ;; # Destroys: (rdx), rbx, rcx, (rdi) #
 ;; ####################################
 format_hex:
-    ; Add '0x' before number
-    mov word [rdi], '0x'
-    lea rdi, [rdi + 2]
+    mov cl, 0x4
+    mov r11, 0xF
+    mov r9, 16d
+jmp format_bin_power
 
-    ; 64 / 8 = 16 blocks
-    mov rcx, 16d
-
-.format_prefix: ; skip leading zeros
-    mov rbx, rdx
-    rol rbx, 4
-    and rbx, 0xF ; Extract first block
-
-    test rbx, rbx ; Stop skipking if block is non-zero
-    jnz .format_digit
-    
-    shl rdx, 4
-loop .format_prefix
-
-    ; If number was 0 we should process one more bit
-    test rcx, rcx
-    jnz .format_digit
-    inc rcx
-
-.format_digit:
-    ; Write digit
-    mov bl, [rbx + hex_digits]
-    mov [rdi], bl
-    inc rdi
-
-    ; Update last octet
-    shl rdx, 4
-    mov rbx, rdx
-    rol rbx, 4
-    and rbx, 0xF
-    loop .format_digit  
-ret
+;; ####################################
+;; # Format Binary                    #
+;; ####################################
+;; # Args:                            #
+;; # rdx -- number to format          #
+;; # rdi -- pointer to buffer         #
+;; # Destroys: (rdx), rbx, rcx, (rdi) #
+;; ####################################
+format_bin:
+    mov cl, 0x1
+    mov r11, 0x1
+    mov r9, 64d
+jmp format_bin_power
 
 ;; ####################################
 ;; # Format Octo                      #
@@ -197,47 +197,10 @@ ret
 ;; # Destroys: (rdx), rbx, rcx, (rdi) #
 ;; ####################################
 format_octo:
-    ; Add '0o' before number
-    mov word [rdi], '0o'
-    lea rdi, [rdi + 2]
-
-    ; 64 = 21 * 3 + 1 => 21 block
-    mov rcx, 21d
-
-    ; Test highest bit
-    mov rbx, rdx
-    shl rdx, 1
-    and rbx, HIGHER_BIT
-    test rbx, rbx
-    jz .format_prefix
-    mov byte [rdi], '1'
-    inc rdi
-
-.format_prefix: ; skip leading zeros
-    mov rbx, rdx
-    rol rbx, 3
-    and rbx, 0x7 ; Extract first block
-
-    test rbx, rbx ; Stop skipking if block is non-zero
-    jnz .format_digit
-    
-    shl rdx, 3
-loop .format_prefix
-
-.format_digit:
-    ; Write digit
-    lea rbx, [rbx + '0']
-    mov [rdi], bl
-    inc rdi
-
-    ; Update last octet
-    shl rdx, 3
-    mov rbx, rdx
-    rol rbx, 3
-    and rbx, 0x7
-    test rdx, rdx
-    jne .format_digit  
-ret
+    mov cl, 3
+    mov r11, 0x7
+    mov r9, 21d
+jmp format_bin_power
 
 ;; ####################################
 ;; # Format Char                      #
@@ -252,7 +215,7 @@ format_char:
     ; Just copy char to buffer
     mov [rdi], rdx
     inc rdi
-ret
+jmp asm_printf.loadsymbol
 
 ;; ####################################
 ;; # Format String                    #
@@ -286,7 +249,26 @@ format_string:
         print_str rdx, rcx
         mov rsi, rbx
         mov rdi, r9
-ret
+jmp asm_printf.loadsymbol
+
+
+;; ####################################
+;; # Default Case                     #
+;; ####################################
+;; # Args: rsi -> input str           #
+;; # Return: rdi -> end of formatted  #
+;; # string                           #
+;; # Destroys:                        #
+;; ####################################
+default_case:
+    mov byte [rdi], '%'
+    mov al, [rsi - 1]
+    mov byte [rdi+1], al
+
+    inc rdi
+    inc rdi
+
+jmp asm_printf.loadsymbol
 
 ;; ####################################
 ;; # Format Decimal                   #
@@ -349,20 +331,23 @@ jnz .format_digit
     jb .no_minus_buf
 
     pop r13
-ret
+jmp asm_printf.loadsymbol
+
 
 
 segment .rodata
-    call_table dq format_binary
+    jmp_table dq format_bin
                dq format_char
                dq format_decimal
-               dq 10 dup(0) ; default
+               dq 10 dup(default_case) ; default
                dq format_octo
-               dq 3 dup(0)
+               dq 3 dup(default_case)
                dq format_string
-               dq 4 dup(0)
+               dq 4 dup(default_case)
                dq format_hex
     
+    JMP_TABLE_SIZE equ 23
+
     hex_digits db "0123456789ABCDEF"
 
 segment .bss
