@@ -1,4 +1,5 @@
 %include "printf.nasm"
+
 global own_printf_wrapper
 ; global _start
 extern printf
@@ -10,7 +11,7 @@ segment .text
 ; ################################
 own_printf_wrapper:
     ; Convert stdcall to cdecl
-    pop r12 ; Save return addr
+    pop qword [ret_addr] ; Save return addr
 
     push r9 
     push r8 
@@ -19,7 +20,18 @@ own_printf_wrapper:
     push rsi 
     push rdi
 
+    push 26
+    push func_name_str
+    push format_str
     call asm_printf
+    add rsp, 8*3
+
+    call asm_printf
+
+    mov rdi, format_str
+    mov rsi, func_name_str
+    mov rdx, 26
+    call printf
 
     pop rdi
     pop rsi
@@ -30,7 +42,7 @@ own_printf_wrapper:
 
     call printf
 
-    push r12 ; Restore return addr
+    push qword [ret_addr] ; Restore return addr
     ret
 
 _start: 
@@ -38,18 +50,21 @@ _start:
     push 18446744073709551615
     push 18446744073709551615
     push -1
-    push helloworld
+    push main_func_str
     push format_str
     call asm_printf
 
     mov rax, 60d
     mov rdi, 0d
     syscall
+
 segment .data 
+ret_addr        dq 1 dup(0)
 
 segment .rodata
-format_str db "hello %s %d %o %a %x %b %q", newline, 0x00
-helloworld db "Happy New Year", 0x00
+format_str      db "## hello you called func %s on line %d ##", newline, newline, 0x00
+func_name_str   db "own_printf_wrapper", 0x00
+main_func_str   db "MAIN"
 
 segment .bss
 registers_copy dq 6 dup(?)
